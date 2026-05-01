@@ -147,3 +147,46 @@ def discover_available_fields(html: str) -> list[str]:
 	result = [f for f in priority_order if f in detected_fields]
 	result.extend(sorted(detected_fields - set(priority_order)))
 	return result if result else ['title', 'description']
+
+def _extract_url(container, base_url: str) -> str:
+	link = container.find('a', href=True)
+	if link:
+		return make_absolute_url(base_url, link.get('href'))
+	return ''
+
+
+def _extract_field_value(container, field: str, base_url: str) -> str:
+	normalized = field.lower().strip()
+	if normalized in {'url', 'link', 'href'}:
+		return _extract_url(container, base_url)
+	if normalized == 'title':
+		heading = container.find(['h1', 'h2', 'h3', 'h4', 'h5', 'h6'])
+		if heading:
+			return clean_text(heading.get_text(' ', strip=True))
+	if normalized == 'description':
+		paragraph = container.find('p')
+		if paragraph:
+			return clean_text(paragraph.get_text(' ', strip=True))
+	if normalized == 'author':
+		author = container.find(attrs={'itemprop': 'author'})
+		if author:
+			return clean_text(author.get_text(' ', strip=True))
+	return ''
+
+
+def _extract_rows_from_html(html: str, base_url: str, selected_fields: list[str]) -> list[dict[str, str]]:
+	soup = BeautifulSoup(html, 'html.parser')
+	fields = selected_fields or ['title', 'url', 'description']
+	containers = _find_repeating_containers(soup)
+	rows: list[dict[str, str]] = []
+	for container in containers[:100]:
+		row: dict[str, str] = {}
+		for field in fields:
+			value = _extract_field_value(container, field, base_url)
+			if value:
+				row[field] = value
+		if row:
+			rows.append(row)
+	if rows:
+		return deduplicate_rows(rows)
+	return [{'title': base_url, 'url': base_url, 'description': clean_text(soup.get_text(' ', strip=True))[:240]}]
