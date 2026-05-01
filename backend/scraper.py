@@ -190,3 +190,76 @@ def _extract_rows_from_html(html: str, base_url: str, selected_fields: list[str]
 	if rows:
 		return deduplicate_rows(rows)
 	return [{'title': base_url, 'url': base_url, 'description': clean_text(soup.get_text(' ', strip=True))[:240]}]
+
+def scrape_website(url: str, query: str | None, output_format: str, selected_fields: list[str] | None = None) -> dict:
+	page_bundle = fetch_page(url)
+	fields = selected_fields if selected_fields else ['title', 'url', 'description']
+	data = _extract_rows_from_html(page_bundle.html, page_bundle.url, fields)
+	csv_text = rows_to_csv(data) if output_format.lower() == 'csv' else None
+	return {
+		'success': True,
+		'message': 'Scraped rendered data' if page_bundle.used_playwright else 'Scraped page data',
+		'data': data,
+		'fields': list(data[0].keys()) if data else fields,
+		'csv': csv_text,
+	}
+```
+
+**Run these commands**
+
+```bash
+git add backend/scraper.py
+git commit -m "feat: wire scrape orchestration"
+```
+
+---
+
+## Commit 9  add rule based qa
+
+**Commit message**
+
+```bash
+git commit -m "feat: add grounded qa rules"
+```
+
+**Edit `backend/scraper.py` and add these lines**
+
+```python
+def parse_numeric_value(value: str | int | float | None) -> float | None:
+	if value is None:
+		return None
+	text = str(value).strip().replace(',', '')
+	if not text:
+		return None
+	try:
+		return float(text)
+	except ValueError:
+		import re
+		match = re.search(r'-?\d+(?:\.\d+)?', text)
+		return float(match.group(0)) if match else None
+
+
+def build_answer_result(answer: str, *, intent: str = 'unknown', field: str = '', operation: str = 'unknown', source: str = 'rule') -> dict[str, str]:
+	return {
+		'answer': answer,
+		'intent': intent,
+		'field': field,
+		'operation': operation,
+		'source': source,
+	}
+
+
+def answer_question(question: str, data: list[dict[str, str]]) -> dict[str, str]:
+	if not data:
+		return build_answer_result('No scraped data is available to answer the question.', intent='none', source='rule')
+	normalized = question.strip().lower()
+	row_count = len(data)
+	if 'how many' in normalized or 'count' in normalized:
+		return build_answer_result(f'There are {row_count} rows in the extracted dataset.', intent='count', operation='count', source='rule')
+	first_row = data[0]
+	for field in first_row.keys():
+		if field.lower() in normalized:
+			value = first_row.get(field)
+			if value is not None:
+				return build_answer_result(f'The {field} is {value}.', intent='lookup', field=field, operation='lookup', source='rule')
+	return build_answer_result('I could not answer that from the extracted data.', intent='unknown', source='rule')
