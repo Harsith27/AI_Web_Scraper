@@ -68,3 +68,82 @@ def fetch_page(url: str) -> PageBundle:
 
 	return PageBundle(url=url, html=html, used_playwright=used_playwright)
 
+def _is_navigation_element(elem) -> bool:
+	nav_indicators = ['header', 'nav', 'menu', 'footer', 'breadcrumb', 'search', 'filter', 'sidebar', 'top-bar', 'navbar']
+	classes = ' '.join(elem.get('class', [])).lower()
+	id_attr = elem.get('id', '').lower()
+	data_test = elem.get('data-test', '').lower()
+	combined = f"{classes} {id_attr} {data_test}"
+	return any(indicator in combined for indicator in nav_indicators)
+
+
+def _find_repeating_containers(soup: BeautifulSoup) -> list:
+	semantic_selectors = ['[data-test*="item"]', '[data-test*="card"]', '[role="listitem"]']
+	for selector in semantic_selectors:
+		containers = soup.select(selector)
+		if len(containers) >= 2:
+			filtered = [c for c in containers if not _is_navigation_element(c)]
+			if len(filtered) >= 2:
+				return filtered
+	return soup.find_all(['article', 'li', 'div', 'section'])
+
+
+def _deduplicate_similar_fields(fields: set) -> set:
+	field_groups = {
+		'content': ['description', 'summary', 'body', 'content', 'text', 'excerpt'],
+		'title': ['title', 'name', 'headline'],
+		'tags': ['tags', 'categories', 'labels', 'keywords'],
+	}
+	deduplicated = set(fields)
+	for _, group_fields in field_groups.items():
+		group_members = [f for f in group_fields if f in deduplicated]
+		if len(group_members) > 1:
+			for f in group_members[1:]:
+				deduplicated.discard(f)
+	return deduplicated
+
+
+def _infer_fields_from_content(container) -> set[str]:
+	detected = set()
+	text = container.get_text(' ', strip=True)
+	if container.find_all(['h1', 'h2', 'h3', 'h4', 'h5', 'h6']):
+		detected.add('title')
+	if container.find_all('li'):
+		detected.add('tags')
+	if len(text) > 50:
+		detected.add('description')
+	return detected
+
+
+def _analyze_container_for_fields(container) -> set[str]:
+	detected = set()
+	for elem in container.find_all(True):
+		classes = ' '.join(elem.get('class', [])).lower()
+		itemprop = elem.get('itemprop', '').lower()
+		combined = f"{classes} {itemprop}"
+		if 'title' in combined or 'name' in combined:
+			detected.add('title')
+		if 'author' in combined:
+			detected.add('author')
+		if 'tag' in combined:
+			detected.add('tags')
+		if 'price' in combined:
+			detected.add('price')
+	if not detected:
+		detected.update(_infer_fields_from_content(container))
+	return detected
+
+
+def discover_available_fields(html: str) -> list[str]:
+	soup = BeautifulSoup(html, 'html.parser')
+	containers = _find_repeating_containers(soup)
+	detected_fields = set()
+	for container in containers[:5]:
+		detected_fields.update(_analyze_container_for_fields(container))
+	if not detected_fields:
+		detected_fields = {'title', 'description'}
+	detected_fields = _deduplicate_similar_fields(detected_fields)
+	priority_order = ['title', 'description', 'author', 'tags', 'price', 'rating', 'date', 'company', 'location']
+	result = [f for f in priority_order if f in detected_fields]
+	result.extend(sorted(detected_fields - set(priority_order)))
+	return result if result else ['title', 'description']
