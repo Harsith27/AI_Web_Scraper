@@ -203,28 +203,7 @@ def scrape_website(url: str, query: str | None, output_format: str, selected_fie
 		'fields': list(data[0].keys()) if data else fields,
 		'csv': csv_text,
 	}
-```
 
-**Run these commands**
-
-```bash
-git add backend/scraper.py
-git commit -m "feat: wire scrape orchestration"
-```
-
----
-
-## Commit 9  add rule based qa
-
-**Commit message**
-
-```bash
-git commit -m "feat: add grounded qa rules"
-```
-
-**Edit `backend/scraper.py` and add these lines**
-
-```python
 def parse_numeric_value(value: str | int | float | None) -> float | None:
 	if value is None:
 		return None
