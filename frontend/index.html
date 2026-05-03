@@ -1,19 +1,191 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="dark">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Web Scraping AI</title>
+  <title>AI-Powered Web Scraper</title>
+  <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="/frontend/style.css" />
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            bg: '#000',
+            surface: '#111',
+            'surface-strong': '#171717',
+            'surface-elevated': '#1a1a1a',
+            border: '#262626',
+            'border-strong': '#333',
+            muted: '#a1a1a1',
+            'muted-strong': '#737373',
+            accent: '#0070f3',
+            'accent-strong': '#3291ff',
+          }
+        }
+      }
+    }
+  </script>
 </head>
-<body>
-  <main>
-	<h1>Web Scraping AI</h1>
-	<input id="url-input" placeholder="https://example.com" />
-	<button id="check-fields-btn">Check Available Fields</button>
-	<div id="message"></div>
-	<div id="fields-list"></div>
-	<script src="/frontend/script.js"></script>
+<body class="min-h-screen bg-bg text-white font-sans antialiased">
+  <div id="toast-container" class="fixed top-5 right-5 z-[9999] flex flex-col gap-2.5 max-w-sm"></div>
+
+  <main class="w-full max-w-3xl mx-auto px-4 py-8 flex flex-col gap-4">
+    <header class="border border-border rounded-xl bg-surface p-8">
+      <div class="flex items-center gap-3 mb-3">
+        <div class="w-10 h-10 rounded-lg bg-accent flex items-center justify-center font-bold text-sm text-white">AI</div>
+        <h1 class="text-2xl md:text-4xl font-semibold tracking-tight">AI-Powered Web Scraper</h1>
+      </div>
+      <p class="text-muted text-sm leading-relaxed max-w-xl">Extract structured data from any website and ask grounded questions over messy pages.</p>
+    </header>
+
+    <section class="border border-border rounded-xl bg-surface p-6">
+      <div class="flex items-start justify-between mb-5">
+        <div>
+          <p class="text-[0.7rem] font-semibold uppercase tracking-wider text-muted mb-1">Step 1</p>
+          <h2 class="text-base font-semibold">Discover fields</h2>
+        </div>
+        <span class="text-xs font-medium text-muted bg-surface-strong border border-border rounded-full px-3 py-1.5">Analyze structure</span>
+      </div>
+      <form id="discovery-form" class="flex flex-col gap-4">
+        <label class="flex flex-col gap-2">
+          <span class="text-sm font-medium">Website URL</span>
+          <input id="url-input" type="url" placeholder="https://example.com/products" autocomplete="off" required class="w-full border border-border rounded-lg bg-black text-sm px-3.5 py-2.5 outline-none focus:border-accent focus:ring-2 focus:ring-accent/20 placeholder:text-muted-strong transition" />
+        </label>
+        <button id="check-fields-btn" type="submit" class="bg-accent hover:bg-accent-strong text-white font-medium text-sm rounded-lg px-5 h-[42px] transition disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center justify-center gap-2">
+          <span class="btn-text">Check Available Fields</span>
+          <span class="spinner hidden"></span>
+        </button>
+      </form>
+      <p id="message" class="text-muted text-sm mt-3">Enter a URL and click Check Available Fields to start.</p>
+    </section>
+
+    <section class="border border-border rounded-xl bg-surface p-6">
+      <div class="flex items-start justify-between mb-5">
+        <div>
+          <p class="text-[0.7rem] font-semibold uppercase tracking-wider text-muted mb-1">Step 2</p>
+          <h2 class="text-base font-semibold">Select fields</h2>
+        </div>
+        <span class="text-xs font-medium text-muted bg-surface-strong border border-border rounded-full px-3 py-1.5">Refine output</span>
+      </div>
+      <p class="text-muted text-sm mb-4">Select the fields you want. The query box auto-fills from your selection, but any manual edit is preserved.</p>
+      <div id="fields-list" class="grid grid-cols-1 md:grid-cols-2 gap-2 p-4 rounded-lg border border-border bg-black min-h-[80px]">
+        <span class="text-muted text-sm">Discover fields first to see options here.</span>
+      </div>
+    </section>
+
+    <section class="border border-border rounded-xl bg-surface p-6">
+      <div class="flex items-start justify-between mb-5">
+        <div>
+          <p class="text-[0.7rem] font-semibold uppercase tracking-wider text-muted mb-1">Step 3</p>
+          <h2 class="text-base font-semibold">Query and extract</h2>
+        </div>
+        <span class="text-xs font-medium text-muted bg-surface-strong border border-border rounded-full px-3 py-1.5">Ready to run</span>
+      </div>
+      <label class="flex flex-col gap-2 mb-4">
+        <span class="text-sm font-medium">What do you want to extract?</span>
+        <textarea id="query-input" rows="5" placeholder="Start here or edit the generated extraction prompt" class="w-full border border-border rounded-lg bg-black text-sm px-3.5 py-2.5 outline-none focus:border-accent focus:ring-2 focus:ring-accent/20 placeholder:text-muted-strong transition resize-y min-h-[132px]"></textarea>
+      </label>
+      <div class="grid gap-3 md:grid-cols-[1fr_auto] items-end">
+        <div class="grid grid-cols-1 sm:grid-cols-[1fr_160px] gap-3">
+          <label class="flex flex-col gap-2">
+            <span class="text-sm font-medium">Output format</span>
+            <select id="format-input" class="w-full border border-border rounded-lg bg-black text-sm px-3.5 py-2.5 outline-none focus:border-accent focus:ring-2 focus:ring-accent/20 transition">
+              <option value="json">JSON</option>
+              <option value="csv">CSV</option>
+            </select>
+          </label>
+          <label class="flex flex-col gap-2">
+            <span class="text-sm font-medium">Item limit</span>
+            <input id="limit-input" type="number" min="1" value="10" class="w-full border border-border rounded-lg bg-black text-sm px-3.5 py-2.5 outline-none focus:border-accent focus:ring-2 focus:ring-accent/20 transition" />
+          </label>
+        </div>
+        <button id="extract-btn" class="bg-accent hover:bg-accent-strong text-white font-medium text-sm rounded-lg px-5 h-[42px] min-w-[164px] transition disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center justify-center gap-2" type="button">
+          <span class="btn-text">Extract Data</span>
+          <span class="spinner hidden"></span>
+        </button>
+      </div>
+    </section>
+
+    <section class="border border-border rounded-xl bg-surface p-6" id="results-panel">
+      <div class="flex items-center justify-between">
+        <div>
+          <p class="text-[0.7rem] font-semibold uppercase tracking-wider text-muted mb-1">Output</p>
+          <h2 class="text-base font-semibold">Results</h2>
+        </div>
+        <div class="inline-flex border border-border rounded-lg bg-surface-strong overflow-hidden">
+          <button class="tab-button active px-4 py-2 text-sm font-medium bg-surface-elevated text-white" data-tab="table" type="button">Table</button>
+          <button class="tab-button px-4 py-2 text-sm font-medium text-muted hover:text-white transition" data-tab="json" type="button">JSON</button>
+        </div>
+        <a id="csv-download" class="hidden text-accent-strong text-sm font-medium no-underline" href="#" download="scraped-data.csv">Download CSV</a>
+      </div>
+
+      <div class="hidden items-center gap-3 flex-wrap" id="results-toolbar">
+        <div class="flex-1 flex items-center gap-2 relative max-w-sm">
+          <span class="absolute left-3.5 text-muted text-sm pointer-events-none">&#9906;</span>
+          <input id="table-search" type="text" placeholder="Filter rows..." autocomplete="off" class="w-full border border-border rounded-lg bg-black text-sm pl-9 pr-3.5 py-2.5 outline-none focus:border-accent focus:ring-2 focus:ring-accent/20 placeholder:text-muted-strong transition" />
+          <span id="search-count" class="text-xs text-muted whitespace-nowrap"></span>
+        </div>
+        <button id="copy-json-btn" class="bg-surface-strong text-white border border-border px-4 py-2 text-sm rounded-lg hover:bg-surface-elevated transition" type="button" title="Copy JSON to clipboard">
+          <span class="btn-text">Copy JSON</span>
+        </button>
+      </div>
+
+      <div class="relative flex-1" id="results-container">
+        <div id="results-section" style="display: none;">
+          <div class="max-h-[72vh] overflow-auto pr-1">
+            <div id="table-tab" class="tab-content active">
+              <div class="overflow-auto rounded-lg border border-border bg-black">
+                <table id="results-table" class="w-full border-collapse">
+                  <thead></thead>
+                  <tbody></tbody>
+                </table>
+              </div>
+            </div>
+            <div id="json-tab" class="tab-content hidden">
+              <pre id="json-output" class="m-0 p-4 rounded-lg bg-black text-sm border border-border overflow-auto whitespace-pre-wrap break-word">{}</pre>
+            </div>
+          </div>
+        </div>
+
+        <div class="min-h-[260px] flex flex-col items-center justify-center text-center py-10" id="empty-state-card">
+          <div class="max-w-sm">
+            <p class="text-[0.7rem] font-semibold uppercase tracking-wider text-muted mb-2">Workspace</p>
+            <h2 class="text-base font-semibold mb-2">Results appear here</h2>
+            <p class="text-muted text-sm">Once you discover fields and extract data, the table and JSON output will show up in this panel.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="border border-border rounded-xl bg-surface p-6">
+      <div class="flex items-start justify-between mb-5">
+        <div>
+          <p class="text-[0.7rem] font-semibold uppercase tracking-wider text-muted mb-1">Step 4</p>
+          <h2 class="text-base font-semibold">Ask about your data</h2>
+        </div>
+        <span class="text-xs font-medium text-muted bg-surface-strong border border-border rounded-full px-3 py-1.5">Grounded answers</span>
+      </div>
+      <form id="ask-form" class="flex flex-col gap-4">
+        <label class="flex flex-col gap-2">
+          <span class="text-sm font-medium">Question</span>
+          <textarea id="question-input" rows="4" placeholder="What's the most expensive book? How many books are in stock?" class="w-full border border-border rounded-lg bg-black text-sm px-3.5 py-2.5 outline-none focus:border-accent focus:ring-2 focus:ring-accent/20 placeholder:text-muted-strong transition resize-y"></textarea>
+        </label>
+        <button id="ask-btn" type="submit" class="bg-accent hover:bg-accent-strong text-white font-medium text-sm rounded-lg px-5 h-[42px] transition disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center justify-center gap-2">
+          <span class="btn-text">Ask Question</span>
+          <span class="spinner hidden"></span>
+        </button>
+      </form>
+      <div class="mt-3 flex flex-col gap-3">
+        <p class="text-[0.7rem] font-semibold uppercase tracking-wider text-muted">Answer</p>
+        <div id="answer-output" class="rounded-lg border border-border bg-black p-4 text-sm leading-relaxed">
+          <p class="text-muted text-sm">Extract data first, then ask questions about it.</p>
+        </div>
+      </div>
+    </section>
   </main>
+
+  <script src="/frontend/script.js"></script>
 </body>
 </html>
